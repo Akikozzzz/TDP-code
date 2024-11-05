@@ -1,5 +1,6 @@
 from controller import Robot, Motion, Supervisor
 import math
+import time
 
 class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
     def loadMotionFiles(self):
@@ -10,6 +11,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             self.turnRight40 = Motion('../../motions/TurnRight40.motion')
             self.shoot = Motion('../../motions/Shoot.motion')
             self.handWave = Motion('../../motions/HandWave.motion')
+            self.standUp = Motion('../../motions/StandUpFromFront.motion')
             if not all([self.forwards, self.turnLeft40, self.turnRight40, self.shoot, self.handWave]):
                 print("Error: Motion files could not be loaded. Check file paths.")
         except Exception as e:
@@ -31,6 +33,11 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         position = self.gps.getValues()
         print('当前GPS位置: [x y z] = [%f %f %f]' % (position[0], position[1], position[2]))
         return position
+        
+    def get_acceleration(self):
+        acceleration = self.accelerometer.getValues()
+        print('当前acc值: [x y z] = [%f %f %f]' % (acceleration[0], acceleration[1], acceleration[2]))
+        return acceleration
 
     def get_orientation(self):
         # 使用惯性单元获取机器人的朝向
@@ -50,6 +57,10 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         # 惯性单元设备初始化
         self.inertialUnit = self.getDevice('inertial unit')
         self.inertialUnit.enable(self.timeStep)
+        
+         # 加速度计设备初始化
+        self.accelerometer = self.getDevice('accelerometer')
+        self.accelerometer.enable(self.timeStep)
 
     def __init__(self):
         super(Nao, self).__init__()  # 使用正确的调用方式
@@ -66,6 +77,12 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         dx = pos2[0] - pos1[0]
         dz = pos2[1] - pos1[1]
         return math.atan2(dz, dx)
+    
+    def isFallen(self):
+        # 检测机器人是否摔倒（例如：根据加速度计的值）
+        acceleration = self.accelerometer.getValues()
+        # 简单判断，如果z轴加速度小于一个阈值，认为机器人摔倒
+        return 1 < abs(acceleration[2]) < 1.5 # 阈值可根据实际情况调整
 
     def run(self):
     # 获取球的位置
@@ -73,15 +90,23 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         if ball_node is None:
             print("Error: Ball node not found.")
             return
-
-        
+       
         target_position = ball_node.getField("translation").getSFVec3f()
         target_x, target_y = target_position[0], target_position[1]
 
         print(f"目标位置 (球的位置): x = {target_x}, y = {target_y}")
 
         while True:
+            if self.isFallen():
+                print("机器人摔倒了，执行起身动作。")
+                self.startMotion(self.standUp)
+                while not self.standUp.isOver():
+                    self.step(self.timeStep)  # 等待动作完成
+                print("机器人已起身，继续执行后续动作。")
+                continue  # 继续执行后续动作
+                      
             robot_position = self.get_position()
+            robot_acceleration = self.get_acceleration()
             distance_to_target = self.calculateDistance(robot_position, (target_x, target_y, 0))
 
             # 计算当前与目标位置的角度差
@@ -101,8 +126,8 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             else:
                 # 角度接近目标方向，开始前进
                 self.startMotion(self.forwards)
-
-            if distance_to_target < 0.2:
+                
+            if distance_to_target < 0.18:
                 print("到达目标位置")
                 # 执行踢球动作
                 self.startMotion(self.shoot)
