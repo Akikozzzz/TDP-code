@@ -1,19 +1,14 @@
-from controller import Robot, Motion
+from controller import Robot, Motion, Supervisor
 import math
 
 class Nao(Robot):
     def loadMotionFiles(self):
         # 加载前进、转向和停顿的动作文件
-        try:
-            self.forwards = Motion('../../motions/Forwards50.motion')
-            self.turnLeft40 = Motion('../../motions/TurnLeft40.motion')
-            self.turnRight40 = Motion('../../motions/TurnRight40.motion')
-            self.Shoot = Motion('../../motions/Shoot.motion')
-            if self.forwards is None or self.turnLeft60 is None or self.turnRight60 is None or self.stand is None:
-                print("Error: Motion files could not be loaded. Check file paths.")
-        except Exception as e:
-            print("Error loading motion files:", e)
-
+        self.forwards = Motion('../../motions/Forwards50.motion')
+        self.turnLeft40 = Motion('../../motions/TurnLeft40.motion')
+        self.turnRight40 = Motion('../../motions/TurnRight40.motion')
+        self.shoot = Motion('../../motions/Shoot.motion')
+        self.handWave = Motion('../../motions/HandWave.motion')
     def startMotion(self, motion):
         # 检查 motion 是否存在
         if motion is None:
@@ -50,7 +45,6 @@ class Nao(Robot):
         self.inertialUnit = self.getDevice('inertial unit')
         self.inertialUnit.enable(self.timeStep)
 
-
     def __init__(self):
         Robot.__init__(self)
         self.currentlyPlaying = None
@@ -85,21 +79,23 @@ class Nao(Robot):
             # 使用40度的旋转步幅来调整朝向
             if abs(angle_diff) > math.radians(40):  # 当角度误差大于40度时旋转
                 if angle_diff > 0:
-                    self.startMotion(self.turnLeft40)
+                    self.startMotion(self.turnLeft40)                   
                 else:
-                    self.startMotion(self.turnRight40)
+                    self.startMotion(self.turnRight40)                  
             else:
                 # 角度接近目标方向，开始前进
                 self.startMotion(self.forwards)
+      
                 
-            if distance_to_target < 0.2:  # 如果距离小于设定的范围，停止
+            if distance_to_target < 0.15:  
                 print("到达目标位置")
                 # 执行踢球动作
-                self.startMotion(self.Shoot)
-
+                self.startMotion(self.shoot)
+                while not self.shoot.isOver():
+                    self.step(self.timeStep)  # 等待动作完成  
                 print("踢球动作完成")
                 break
-                
+            
             if self.step(self.timeStep) == -1:
                 break
 
