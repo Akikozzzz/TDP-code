@@ -1,0 +1,12 @@
+1.在 RobocupSoccerBall 节点前添加 DEF ball，如下所示：
+DEF ball RobocupSoccerBall {
+  translation 0.49530085621417635 0.08977165336358767 0.07967828166033651
+  rotation 0.22224563144168655 -0.9493495263756896 0.22213139371853646 1.6221714935397986
+  name "ball"
+}
+
+2.找到 Nao 机器人定义部分。确保它的 controller 字段设置为我们当前的控制器，并启用了 supervisor 选项：
+Nao {
+  controller "test"  # 确保这是正确的控制器名称
+  supervisor TRUE    # 确保启用了 supervisor
+}
