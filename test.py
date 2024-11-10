@@ -12,6 +12,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             self.shoot = Motion('../../motions/Shoot.motion')
             self.handWave = Motion('../../motions/HandWave.motion')
             self.standUp = Motion('../../motions/StandUpFromFront.motion')
+            self.sideStepRight = Motion('../../motions/SideStepRight.motion')
             if not all([self.forwards, self.turnLeft40, self.turnRight40, self.shoot, self.handWave]):
                 print("Error: Motion files could not be loaded. Check file paths.")
         except Exception as e:
@@ -83,61 +84,87 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         acceleration = self.accelerometer.getValues()
         # 简单判断，如果z轴加速度小于一个阈值，认为机器人摔倒
         return 1 < abs(acceleration[2]) < 1.5 # 阈值可根据实际情况调整
-
+        
     def run(self):
-    # 获取球的位置
+        # 获取球节点
         ball_node = self.getFromDef("ball")
         if ball_node is None:
             print("Error: Ball node not found.")
             return
-       
-        target_position = ball_node.getField("translation").getSFVec3f()
-        target_x, target_y = target_position[0], target_position[1]
-
-        print(f"目标位置 (球的位置): x = {target_x}, y = {target_y}")
-
+    
+        goal_x = 4.4985  # 球门x坐标
+        goal_center_y = 0
+        goal_y_min = -1.34321
+        goal_y_max = 1.34321
+        approach_distance = 0.2
+    
         while True:
+            target_position = ball_node.getField("translation").getSFVec3f()
+            target_x, target_y = target_position[0], target_position[1]
+            print(f"目标位置 (球的位置): x = {target_x}, y = {target_y}")
+    
+            if target_x > goal_x and goal_y_min <= target_y <= goal_y_max:
+                print("球已进入球门，停止踢球。")
+                break
+    
             if self.isFallen():
                 print("机器人摔倒了，执行起身动作。")
                 self.startMotion(self.standUp)
                 while not self.standUp.isOver():
-                    self.step(self.timeStep)  # 等待动作完成
+                    self.step(self.timeStep)
                 print("机器人已起身，继续执行后续动作。")
-                continue  # 继续执行后续动作
-                      
+                continue
+    
             robot_position = self.get_position()
-            robot_acceleration = self.get_acceleration()
-            distance_to_target = self.calculateDistance(robot_position, (target_x, target_y, 0))
-
-            # 计算当前与目标位置的角度差
-            angle_to_target = self.calculateAngle(robot_position, (target_x, target_y, 0))
             robot_yaw = self.get_orientation()
-
-            # 计算角度差并归一化到[-pi, pi]
-            angle_diff = angle_to_target - robot_yaw
-            angle_diff = (angle_diff + math.pi) % (2 * math.pi) - math.pi
-
-            # 使用40度的旋转步幅来调整朝向
-            if abs(angle_diff) > math.radians(40):  # 当角度误差大于40度时旋转
-                if angle_diff > 0:
-                    self.startMotion(self.turnLeft40)
+            distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
+    
+            if distance_to_ball > approach_distance:
+                angle_to_ball = self.calculateAngle(robot_position, (target_x, target_y, 0))
+                angle_diff = angle_to_ball - robot_yaw
+                angle_diff = (angle_diff + math.pi) % (2 * math.pi) - math.pi
+    
+                if abs(angle_diff) > math.radians(40):
+                    if angle_diff > 0:
+                        self.startMotion(self.turnLeft40)
+                    else:
+                        self.startMotion(self.turnRight40)
                 else:
-                    self.startMotion(self.turnRight40)
+                    self.startMotion(self.forwards)
             else:
-                # 角度接近目标方向，开始前进
-                self.startMotion(self.forwards)
-                
-            if distance_to_target < 0.18:
-                print("到达目标位置")
-                # 执行踢球动作
-                self.startMotion(self.shoot)
-                while not self.shoot.isOver():
-                    self.step(self.timeStep)  # 等待动作完成
-                print("踢球动作完成")
-                break
-
+                angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
+                angle_diff_to_goal = angle_to_goal_center - robot_yaw
+                angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
+    
+                if abs(angle_diff_to_goal) > math.radians(40):
+                    if angle_diff_to_goal > 0:
+                        self.startMotion(self.turnLeft40)
+                    else:
+                        self.startMotion(self.turnRight40)
+                else:
+                    print("到达目标位置，执行踢球动作。")
+                    
+                    initial_ball_position = target_position.copy()
+                    self.startMotion(self.shoot)
+                    
+                    while not self.shoot.isOver():
+                        self.step(self.timeStep)
+                    
+                    updated_ball_position = ball_node.getField("translation").getSFVec3f()
+                    ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
+                    
+                    if ball_movement < 0.05:  # 检查球是否移动，若移动小于0.05则认为踢空
+                        print("踢空了，向右侧移一步重新对准球。")
+                        self.startMotion(self.sideStepRight)
+                        while not self.sideStepRight.isOver():
+                            self.step(self.timeStep)
+                        print("侧移完成，重新尝试踢球。")
+                    else:
+                        print("踢球成功，重新检查球的位置。")
+    
             if self.step(self.timeStep) == -1:
                 break
+
 
 # 创建Nao实例并运行主循环
 robot = Nao()
