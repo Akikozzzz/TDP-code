@@ -14,6 +14,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             self.standUpFromFront = Motion('../../motions/StandUpFromFront.motion')
             self.standUpFromBack = Motion('../../motions/StandUpFromBack.motion')
             self.sideStepRight = Motion('../../motions/SideStepRight.motion')
+            self.turnLeft180 = Motion('../../motions/TurnLeft180.motion')
             if not all([self.forwards, self.turnLeft30, self.turnRight30, self.shoot, self.handWave]):
                 print("Error: Motion files could not be loaded. Check file paths.")
         except Exception as e:
@@ -103,9 +104,10 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         if stricker_node is None:
             print("Error: stricker node not found.")
             return
-        
+            
         approach_distance = 0.2
- 
+        
+        
         while True:
             target_position = ball_node.getField("translation").getSFVec3f()
             target_x, target_y = target_position[0], target_position[1]
@@ -113,6 +115,41 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             
             striker_position = stricker_node.getField("translation").getSFVec3f()
             striker_x, striker_y = striker_position[0], striker_position[1]
+            
+            distance_to_striker = self.calculateDistance((target_x, target_y, 0), (striker_x, striker_y, 0))
+        
+            if distance_to_striker < 1:
+                print("传球完成，传球机器人停止行动。")
+                self.startMotion(self.turnLeft180)
+                while not self.turnLeft180.isOver():
+                    self.step(self.timeStep)
+
+                steps = 3  # 你可以根据需要增加步数
+                for _ in range(steps):
+                    self.startMotion(self.forwards)
+                    while not self.forwards.isOver():
+                        self.step(self.timeStep)
+
+                self.startMotion(self.turnLeft180)
+                while not self.turnLeft180.isOver():
+                    self.step(self.timeStep)
+                    
+                if self.isFallenBack():
+                    print("机器人摔倒了，执行起身动作。")
+                    self.startMotion(self.standUpFromBack)
+                    while not self.standUpFromBack.isOver():
+                        self.step(self.timeStep)
+                    print("机器人已起身，继续执行后续动作。")
+                    continue
+            
+                if self.isFallenFront():
+                    print("机器人摔倒了，执行起身动作。")
+                    self.startMotion(self.standUpFromFront)
+                    while not self.standUpFromFront.isOver():
+                        self.step(self.timeStep)
+                    print("机器人已起身，继续执行后续动作。")
+                    continue
+                break
             
             if self.isFallenBack():
                 print("机器人摔倒了，执行起身动作。")
@@ -165,7 +202,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                     
                     while not self.shoot.isOver():
                         self.step(self.timeStep)
-                    
+                                           
                     updated_ball_position = ball_node.getField("translation").getSFVec3f()
                     ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
                     
@@ -177,7 +214,8 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                         print("侧移完成，重新尝试踢球。")
                     else:
                         print("踢球成功，重新检查球的位置。")
-    
+
+                        
             if self.step(self.timeStep) == -1:
                 break
 # 创建Nao实例并运行主循环
