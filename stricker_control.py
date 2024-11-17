@@ -14,6 +14,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             self.standUpFromFront = Motion('../../motions/StandUpFromFront.motion')
             self.standUpFromBack = Motion('../../motions/StandUpFromBack.motion')
             self.sideStepRight = Motion('../../motions/SideStepRight.motion')
+            self.sideStepLeft = Motion('../../motions/SideStepLeft.motion')
             if not all([self.forwards, self.turnLeft30, self.turnRight30, self.shoot, self.handWave]):
                 print("Error: Motion files could not be loaded. Check file paths.")
         except Exception as e:
@@ -33,19 +34,16 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
     def get_position(self):
         # 获取并返回机器人当前GPS位置
         position = self.gps.getValues()
-        print('当前GPS位置: [x y z] = [%f %f %f]' % (position[0], position[1], position[2]))
         return position
         
     def get_acceleration(self):
         acceleration = self.accelerometer.getValues()
-        print('当前acc值: [x y z] = [%f %f %f]' % (acceleration[0], acceleration[1], acceleration[2]))
         return acceleration
 
     def get_orientation(self):
         # 使用惯性单元获取机器人的朝向
         rpy = self.inertialUnit.getRollPitchYaw()
         yaw = rpy[2]  # 使用yaw作为机器人的朝向
-        print('当前朝向: yaw = %f' % yaw)
         return yaw
 
     def findAndEnableDevices(self):
@@ -105,6 +103,12 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         goal_y_max = 1.34321
         approach_distance = 0.2
         attacker_active = False
+        
+        # 禁区范围
+        goal_area_x_min = 3.5
+        goal_area_x_max = 4.5
+        goal_area_y_min = -1.5
+        goal_area_y_max = 1.5
  
         while True:
             target_position = ball_node.getField("translation").getSFVec3f()
@@ -136,54 +140,96 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             robot_yaw = self.get_orientation()
             distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
             
-            if distance_to_ball < 1 or attacker_active:
-                attacker_active = True  # 一旦进攻者开始行动，保持此状态
+            angle_to_ball = self.calculateAngle(robot_position, (target_x, target_y, 0))
+            angle_diff = angle_to_ball - robot_yaw
+            angle_diff = (angle_diff + math.pi) % (2 * math.pi) - math.pi  # 归一化角度差
     
-                if distance_to_ball > approach_distance:
-                    angle_to_ball = self.calculateAngle(robot_position, (target_x, target_y, 0))
-                    angle_diff = angle_to_ball - robot_yaw
-                    angle_diff = (angle_diff + math.pi) % (2 * math.pi) - math.pi
-        
-                    if abs(angle_diff) > math.radians(30):
-                        if angle_diff > 0:
+            # 判断球是否在机器人后方
+            if target_x < robot_position[0]:
+                print("球在机器人身后，绕过球移动到球的后方。")
+            
+                # 确定绕行点
+                side_offset = 0.5  # 偏移距离
+                if robot_position[1] >= target_y:
+                    around_point = (target_x, target_y + side_offset)  # 球的右侧
+                else:
+                    around_point = (target_x, target_y - side_offset)  # 球的左侧
+            
+                distance_to_around_point = self.calculateDistance(robot_position, (around_point[0], around_point[1], 0))
+                angle_to_around_point = self.calculateAngle(robot_position, (around_point[0], around_point[1], 0))
+                angle_diff_to_around = angle_to_around_point - robot_yaw
+                angle_diff_to_around = (angle_diff_to_around + math.pi) % (2 * math.pi) - math.pi
+            
+                # 先移动到绕行点
+                if distance_to_around_point > 0.1:
+                    if abs(angle_diff_to_around) > math.radians(30):
+                        if angle_diff_to_around > 0:
                             self.startMotion(self.turnLeft30)
                         else:
                             self.startMotion(self.turnRight30)
                     else:
                         self.startMotion(self.forwards)
                 else:
-                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
-                    angle_diff_to_goal = angle_to_goal_center - robot_yaw
-                    angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
-        
-                    if abs(angle_diff_to_goal) > math.radians(30):
-                        if angle_diff_to_goal > 0:
+                    print("到达绕行点，调整到球后方。")
+                    # 目标位置改为球的后方
+                    back_position = (target_x - 0.5, target_y, 0)
+                    angle_to_back = self.calculateAngle(robot_position, back_position)
+                    angle_diff_to_back = angle_to_back - robot_yaw
+                    angle_diff_to_back = (angle_diff_to_back + math.pi) % (2 * math.pi) - math.pi
+            
+                    if abs(angle_diff_to_back) > math.radians(30):
+                        if angle_diff_to_around > 0:
                             self.startMotion(self.turnLeft30)
                         else:
                             self.startMotion(self.turnRight30)
                     else:
-                        print("到达目标位置，执行踢球动作。")
-                        
+                        self.startMotion(self.forwards)
+
+            else:
+                # 球在机器人前方，执行进攻策略
+                if distance_to_ball > 0.8:
+                    print("球在前方，远距离调整方向和位置。")
+                    if abs(angle_diff) > math.radians(30):
+                        self.startMotion(self.turnLeft30 if angle_diff > 0 else self.turnRight30)
+                    else:
+                        self.startMotion(self.forwards)
+                elif distance_to_ball > approach_distance:
+                    print("接近球，调整位置。")
+                    if abs(angle_diff) > math.radians(30):
+                        self.startMotion(self.turnLeft30 if angle_diff > 0 else self.turnRight30)
+                    else:
+                        self.startMotion(self.forwards)
+
+                else:
+                    # 距离球足够近，进行微调和射门
+                    print("微调位置并射门。")
+                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
+                    angle_diff_to_goal = angle_to_goal_center - robot_yaw
+                    angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
+    
+                    if abs(angle_diff_to_goal) > math.radians(10):  # 微调角度
+                        self.startMotion(self.sideStepLeft if angle_diff_to_goal < 0 else self.sideStepRight)
+                    else:
+                        print("到达目标位置，执行射门。")
                         initial_ball_position = target_position.copy()
                         self.startMotion(self.shoot)
-                        
                         while not self.shoot.isOver():
                             self.step(self.timeStep)
-                        
                         updated_ball_position = ball_node.getField("translation").getSFVec3f()
                         ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
                         
-                        if ball_movement < 0.05:  # 检查球是否移动，若移动小于0.05则认为踢空
-                            print("踢空了，向右侧移一步重新对准球。")
+                        if ball_movement < 0.05:  # 判断是否踢空
+                            print("踢空了，向右侧移一步重新调整位置。")
                             self.startMotion(self.sideStepRight)
                             while not self.sideStepRight.isOver():
                                 self.step(self.timeStep)
                             print("侧移完成，重新尝试踢球。")
                         else:
-                            print("踢球成功，重新检查球的位置。")
-        
+                            print("踢球成功，继续下一步。")
+    
+            # 终止条件
             if self.step(self.timeStep) == -1:
-                break
+                break 
 # 创建Nao实例并运行主循环
 robot = Nao()
 # 运行程序，前往球的位置
