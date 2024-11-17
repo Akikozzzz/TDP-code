@@ -6,7 +6,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
     def loadMotionFiles(self):
         # 加载前进、转向和停顿的动作文件
         try:
-            self.forwards = Motion('../../motions/Forwards50.motion')
+            self.forwards = Motion('../../motions/Forwards.motion')
             self.turnLeft30 = Motion('../../motions/TurnLeft30.motion')
             self.turnRight30 = Motion('../../motions/TurnRight30.motion')
             self.shoot = Motion('../../motions/Shoot.motion')
@@ -183,8 +183,12 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                     if abs(angle_diff_to_back) > math.radians(30):
                         if angle_diff_to_around > 0:
                             self.startMotion(self.turnLeft30)
+                            while not self.turnLeft30.isOver():
+                                self.step(self.timeStep)
                         else:
                             self.startMotion(self.turnRight30)
+                            while not self.turnRight30.isOver():
+                                self.step(self.timeStep)
                     else:
                         self.startMotion(self.forwards)
 
@@ -194,18 +198,32 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                     if distance_to_ball > 0.2:
                         print("球在前方，远距离调整方向和位置。")
                         if abs(angle_diff) > math.radians(30):
-                            self.startMotion(self.turnLeft30 if angle_diff > 0 else self.turnRight30)
+                            if angle_diff > 0:
+                                self.startMotion(self.turnLeft30)
+                                while not self.turnLeft30.isOver():
+                                    self.step(self.timeStep)
+                            else:
+                                self.startMotion(self.turnRight30)
+                                while not self.turnRight30.isOver():
+                                    self.step(self.timeStep)
                         else:
                             self.startMotion(self.forwards)
-
-    
+                            while not self.forwards.isOver():
+                                self.step(self.timeStep)
                     else:
                         angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
                         angle_diff_to_goal = angle_to_goal_center - robot_yaw
                         angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
         
-                        if abs(angle_diff_to_goal) > math.radians(10):  # 微调角度
-                            self.startMotion(self.sideStepLeft if angle_diff_to_goal < 0 else self.sideStepRight)
+                        if abs(angle_diff_to_goal) > math.radians(10):  
+                            if angle_diff_to_goal < 0:
+                                self.startMotion(self.sideStepLeft)
+                                while not self.sideStepLeft.isOver():
+                                    self.step(self.timeStep)
+                            else:
+                                self.startMotion(self.sideStepRight) 
+                                while not self.sideStepRight.isOver():
+                                    self.step(self.timeStep)
                         else:
                             print("到达目标位置，执行射门。")
                             initial_ball_position = target_position.copy()
@@ -223,9 +241,18 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                     if distance_to_ball > 0.2:
                         print("球在前方，远距离调整方向和位置。")
                         if abs(angle_diff) > math.radians(30):
-                            self.startMotion(self.turnLeft30 if angle_diff > 0 else self.turnRight30)
+                            if angle_diff > 0:
+                                self.startMotion(self.turnLeft30)
+                                while not self.turnLeft30.isOver():
+                                    self.step(self.timeStep)
+                            else:
+                                self.startMotion(self.turnRight30)
+                                while not self.turnRight30.isOver():
+                                    self.step(self.timeStep)
                         else:
                             self.startMotion(self.forwards)
+                            while not self.forwards.isOver():
+                                self.step(self.timeStep)
                     
                     
                     else:
@@ -236,7 +263,14 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                         angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
                     
                         if abs(angle_diff_to_goal) > math.radians(10):  # 微调角度
-                            self.startMotion(self.sideStepLeft if angle_diff_to_goal < 0 else self.sideStepRight)
+                            if angle_diff_to_goal < 0:
+                                self.startMotion(self.sideStepLeft)
+                                while not self.sideStepLeft.isOver():
+                                    self.step(self.timeStep)
+                            else:
+                                self.startMotion(self.sideStepRight) 
+                                while not self.sideStepRight.isOver():
+                                    self.step(self.timeStep)
                         else:
                             print("到达目标位置，执行射门。")
                             initial_ball_position = target_position.copy()
