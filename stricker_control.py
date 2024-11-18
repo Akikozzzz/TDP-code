@@ -38,7 +38,6 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         
     def get_acceleration(self):
         acceleration = self.accelerometer.getValues()
-        print('当前acc值: [x y z] = [%f %f %f]' % (acceleration[0], acceleration[1], acceleration[2]))
         return acceleration
 
     def get_orientation(self):
@@ -83,13 +82,13 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         # 检测机器人是否摔倒（例如：根据加速度计的值）
         acceleration = self.accelerometer.getValues()
         # 简单判断，如果z轴加速度小于一个阈值，认为机器人摔倒
-        return 0.5 < abs(acceleration[2]) < 1 # 阈值可根据实际情况调整
+        return 0.1 < abs(acceleration[2]) < 0.5  # 阈值可根据实际情况调整
         
     def isFallenFront(self):
         # 检测机器人是否摔倒（例如：根据加速度计的值）
         acceleration = self.accelerometer.getValues()
         # 简单判断，如果z轴加速度小于一个阈值，认为机器人摔倒
-        return 2.5 < abs(acceleration[2]) < 3 # 阈值可根据实际情况调整
+        return 1 < abs(acceleration[2]) < 3# 阈值可根据实际情况调整
         
     def run(self):
         # 获取球节点
@@ -109,6 +108,13 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         goal_area_x_max = 4.5
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
+        
+        move_area_x_min = -0.1
+        move_area_x_max = 4.5
+        move_area_y_min = -3
+        move_area_y_max = 3
+        
+        stricker_blue_position = [1.5, 0, 0.334]
  
         while True:
             target_position = ball_node.getField("translation").getSFVec3f()
@@ -124,6 +130,11 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             if goal_area_x_min <= target_x <= goal_area_x_max:
                 if goal_area_y_min <= target_y <= goal_area_y_max:
                     in_goal_area = True
+            
+            in_move_area = False
+            if move_area_x_min <= target_x <= move_area_x_max:
+                if move_area_y_min <= target_y <= move_area_y_max:
+                    in_move_area = True
     
             if target_x > goal_x and goal_y_min <= target_y <= goal_y_max:
                 print("球已进入球门，停止踢球。")

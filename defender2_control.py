@@ -38,6 +38,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         
     def get_acceleration(self):
         acceleration = self.accelerometer.getValues()
+        print('当前acc值: [x y z] = [%f %f %f]' % (acceleration[0], acceleration[1], acceleration[2]))
         return acceleration
 
     def get_orientation(self):
@@ -82,13 +83,13 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         # 检测机器人是否摔倒（例如：根据加速度计的值）
         acceleration = self.accelerometer.getValues()
         # 简单判断，如果z轴加速度小于一个阈值，认为机器人摔倒
-        return 0.1 < abs(acceleration[2]) < 0.5 # 阈值可根据实际情况调整
+        return 0.1 < abs(acceleration[2]) < 0.5  # 阈值可根据实际情况调整
         
     def isFallenFront(self):
         # 检测机器人是否摔倒（例如：根据加速度计的值）
         acceleration = self.accelerometer.getValues()
         # 简单判断，如果z轴加速度小于一个阈值，认为机器人摔倒
-        return 1 < abs(acceleration[2]) < 3 # 阈值可根据实际情况调整
+        return 1 < abs(acceleration[2]) < 3# 阈值可根据实际情况调整
         
     def run(self):
         # 获取球节点
@@ -97,7 +98,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             print("Error: Ball node not found.")
             return
     
-        goal_x = 4.5 # 球门x坐标
+        goal_x = 4.5  # 球门x坐标
         goal_center_y = 0
         goal_y_min = -1.34321
         goal_y_max = 1.34321
@@ -109,27 +110,27 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
         
-        move_area_x_min = -4.5
-        move_area_x_max = -2.5
-        move_area_y_min = -2.5
-        move_area_y_max = 2.5
- 
-        # 初始位置
-        goalkeeper_blue_position = [-4, 0, 0.334]
+        move_area_x_min = -1.25
+        move_area_x_max = 1.25
+        move_area_y_min = -3
+        move_area_y_max = 3
         
+        defender2_blue_position = [-1.25, 0, 0.334]
+ 
         while True:
             target_position = ball_node.getField("translation").getSFVec3f()
             target_x, target_y = target_position[0], target_position[1]
-            robot_yaw = self.get_orientation()
             robot_position = self.get_position()
+            robot_acc = self.get_acceleration()
             robot_yaw = self.get_orientation()
-        
+            distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
+    
             # 判断球是否在可移动范围内
             in_move_area = False
             if move_area_x_min <= target_x <= move_area_x_max:
                 if move_area_y_min <= target_y <= move_area_y_max:
                     in_move_area = True
-            
+    
             if self.isFallenBack():
                 print("机器人摔倒了，执行起身动作。")
                 self.startMotion(self.standUpFromBack)
@@ -145,13 +146,13 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                     self.step(self.timeStep)
                 print("机器人已起身，继续执行后续动作。")
                 continue
-        
+            
             if not in_move_area:
                 # 球在可移动范围外，守门员回初始位置并面向球
-                distance_to_initial = self.calculateDistance(robot_position, goalkeeper_blue_position)
+                distance_to_initial = self.calculateDistance(robot_position, defender2_blue_position)
                 if distance_to_initial > 0.05:  # 若不在初始位置
                     # 转向初始位置
-                    angle_to_initial = self.calculateAngle(robot_position, goalkeeper_blue_position)
+                    angle_to_initial = self.calculateAngle(robot_position, defender2_blue_position)
                     angle_diff_to_initial = (angle_to_initial - robot_yaw + math.pi) % (2 * math.pi) - math.pi
                     if abs(angle_diff_to_initial) > math.radians(30):
                         if angle_diff_to_initial > 0:
@@ -227,10 +228,10 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                             self.startMotion(self.sideStepRight)
                             while not self.sideStepRight.isOver():
                                 self.step(self.timeStep)
-            # 循环执行
+    
+            
             if self.step(self.timeStep) == -1:
-                break
-
+                break 
 
 # 创建Nao实例并运行主循环
 robot = Nao()
