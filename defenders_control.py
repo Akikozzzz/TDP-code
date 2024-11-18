@@ -100,7 +100,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             print("Error: Ball node not found.")
             return
         
-        stricker_node = self.getFromDef("stricker")
+        stricker_node = self.getFromDef("stricker_blue")
         if stricker_node is None:
             print("Error: stricker node not found.")
             return
@@ -120,20 +120,6 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         
             if distance_to_striker < 1:
                 print("传球完成，传球机器人停止行动。")
-                self.startMotion(self.turnLeft180)
-                while not self.turnLeft180.isOver():
-                    self.step(self.timeStep)
-
-                steps = 3  # 你可以根据需要增加步数
-                for _ in range(steps):
-                    self.startMotion(self.forwards)
-                    while not self.forwards.isOver():
-                        self.step(self.timeStep)
-
-                self.startMotion(self.turnLeft180)
-                while not self.turnLeft180.isOver():
-                    self.step(self.timeStep)
-                    
                 if self.isFallenBack():
                     print("机器人摔倒了，执行起身动作。")
                     self.startMotion(self.standUpFromBack)
@@ -149,8 +135,21 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                         self.step(self.timeStep)
                     print("机器人已起身，继续执行后续动作。")
                     continue
-                break
-            
+                    
+                self.startMotion(self.turnLeft180)
+                while not self.turnLeft180.isOver():
+                    self.step(self.timeStep)
+
+                steps = 3  # 你可以根据需要增加步数
+                for _ in range(steps):
+                    self.startMotion(self.forwards)
+                    while not self.forwards.isOver():
+                        self.step(self.timeStep)
+
+                self.startMotion(self.turnLeft180)
+                while not self.turnLeft180.isOver():
+                    self.step(self.timeStep)                         
+                break          
             if self.isFallenBack():
                 print("机器人摔倒了，执行起身动作。")
                 self.startMotion(self.standUpFromBack)

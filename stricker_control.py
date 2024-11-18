@@ -38,6 +38,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
         
     def get_acceleration(self):
         acceleration = self.accelerometer.getValues()
+        print('当前acc值: [x y z] = [%f %f %f]' % (acceleration[0], acceleration[1], acceleration[2]))
         return acceleration
 
     def get_orientation(self):
@@ -97,13 +98,13 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             print("Error: Ball node not found.")
             return
     
-        goal_x = 4.4985  # 球门x坐标
+        goal_x = 4.5  # 球门x坐标
         goal_center_y = 0
         goal_y_min = -1.34321
         goal_y_max = 1.34321
         approach_distance = 0.1
         
-        # 禁区范围
+        # 敌方禁区范围
         goal_area_x_min = 3.5
         goal_area_x_max = 4.5
         goal_area_y_min = -1.5
@@ -113,6 +114,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             target_position = ball_node.getField("translation").getSFVec3f()
             target_x, target_y = target_position[0], target_position[1]
             robot_position = self.get_position()
+            robot_acc = self.get_acceleration()
             robot_yaw = self.get_orientation()
             distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
             print(f"目标位置 (球的位置): x = {target_x}, y = {target_y}")
