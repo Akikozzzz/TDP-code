@@ -98,24 +98,24 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             print("Error: Ball node not found.")
             return
     
-        goal_x = 4.5  # 球门x坐标
+        goal_x = -4.5  # 球门x坐标
         goal_center_y = 0
         goal_y_min = -1.34321
         goal_y_max = 1.34321
         approach_distance = 0.1
         
         # 敌方禁区范围
-        goal_area_x_min = 3.5
-        goal_area_x_max = 4.5
+        goal_area_x_min = -4.5
+        goal_area_x_max = -3.5
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
         
-        move_area_x_min = -0.1
-        move_area_x_max = 4.6
+        move_area_x_min = -4.6
+        move_area_x_max = 0.1
         move_area_y_min = -3
         move_area_y_max = 3
         
-        stricker_blue_position = [1.5, 1, 0.334]
+        stricker_red_position = [-1.5, -1, 0.334]
  
         while True:
             target_position = ball_node.getField("translation").getSFVec3f()
@@ -137,7 +137,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                 if move_area_y_min <= target_y <= move_area_y_max:
                     in_move_area = True
     
-            if target_x > goal_x and goal_y_min <= target_y <= goal_y_max:
+            if target_x < goal_x and goal_y_min <= target_y <= goal_y_max:
                 print("球已进入球门，停止踢球。")
                 break
     
@@ -162,10 +162,10 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
             angle_diff = (angle_diff + math.pi) % (2 * math.pi) - math.pi  # 归一化角度差
             
             if not in_move_area:
-                distance_to_initial = self.calculateDistance(robot_position, stricker_blue_position)
+                distance_to_initial = self.calculateDistance(robot_position, stricker_red_position)
                 if distance_to_initial > 0.05:  # 若不在初始位置
                     # 转向初始位置
-                    angle_to_initial = self.calculateAngle(robot_position, stricker_blue_position)
+                    angle_to_initial = self.calculateAngle(robot_position, stricker_red_position)
                     angle_diff_to_initial = (angle_to_initial - robot_yaw + math.pi) % (2 * math.pi) - math.pi
                     if abs(angle_diff_to_initial) > math.radians(30):
                         if angle_diff_to_initial > 0:
@@ -197,7 +197,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                 
             else:    
                 # 判断球是否在机器人后方
-                if target_x < robot_position[0]:
+                if target_x > robot_position[0]:
                     print("球在机器人身后，绕过球移动到球的后方。")
                 
                     # 确定绕行点
@@ -224,7 +224,7 @@ class Nao(Supervisor):  # 继承 Supervisor 以便获取其他节点的位置
                     else:
                         print("到达绕行点，调整到球后方。")
                         # 目标位置改为球的后方
-                        back_position = (target_x - 0.5, target_y, 0)
+                        back_position = (target_x + 0.5, target_y, 0)
                         angle_to_back = self.calculateAngle(robot_position, back_position)
                         angle_diff_to_back = angle_to_back - robot_yaw
                         angle_diff_to_back = (angle_diff_to_back + math.pi) % (2 * math.pi) - math.pi
