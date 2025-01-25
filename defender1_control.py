@@ -84,12 +84,12 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
     # Detecting if a robot has fallen from back
     def isFallenBack(self):       
         acceleration = self.accelerometer.getValues()       
-        return 0.1 < abs(acceleration[2]) < 0.5 
+        return 0.1 < abs(acceleration[2]) < 2 
     
     # Detecting if a robot has fallen from front
     def isFallenFront(self):
         acceleration = self.accelerometer.getValues()
-        return 1 < abs(acceleration[2]) < 3
+        return 2 < abs(acceleration[2]) < 3
         
     """
     Description:
@@ -116,7 +116,13 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         if ball_node is None:
             print("Error: Ball node not found.")
             return
-            
+        
+        # Field range
+        field_x_max = 4.5
+        field_x_min = -4.5
+        field_y_max = 3
+        field_y_min = -3
+        
         # Red's goal range
         goal_x = 4.5  
         goal_center_y = 0
@@ -130,11 +136,21 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
         
-        # move area for Red defender1
-        move_area_x_min = -4.5
-        move_area_x_max = -1.25
-        move_area_y_min = -3
-        move_area_y_max = 3
+        # move area for blue defender1
+        move_area_x_min1 = -4.5
+        move_area_x_max1 = 0.1
+        move_area_y_min1 = -3
+        move_area_y_max1 = -1.5
+
+        move_area_x_min2 = -4.5
+        move_area_x_max2 = 0.1
+        move_area_y_min2 = 1.5
+        move_area_y_max2 = 3
+
+        move_area_x_min3 = -3.6
+        move_area_x_max3 = 0.1
+        move_area_y_min3 = -1.5
+        move_area_y_max3 = 1.5
         
         # initial position
         defender1_blue_position = [-2.5, 0, 0.334]
@@ -152,9 +168,23 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
     
             # Determine if the ball is within the moveable range
             in_move_area = False
-            if move_area_x_min <= target_x <= move_area_x_max:
-                if move_area_y_min <= target_y <= move_area_y_max:
-                    in_move_area = True
+            if (move_area_x_min1 <= target_x <= move_area_x_max1 and move_area_y_min1 <= target_y <= move_area_y_max1) or \
+               (move_area_x_min2 <= target_x <= move_area_x_max2 and move_area_y_min2 <= target_y <= move_area_y_max2) or \
+               (move_area_x_min3 <= target_x <= move_area_x_max3 and move_area_y_min3 <= target_y <= move_area_y_max3):
+                in_move_area = True
+                
+            # Detecting whether goaled
+            if target_x > goal_x and goal_y_min <= target_y <= goal_y_max:
+                print("Blue goal")
+                break
+                
+            # Detecting whether ball is out
+            if (target_y > field_y_max) or \
+               (target_y < field_y_min) or \
+               (target_x > field_x_max and ((target_y > goal_y_max) or (target_y < goal_y_min))) or \
+               (target_x < field_x_min and ((target_y > goal_y_max) or (target_y < goal_y_min))):
+                print("ball out")
+                break
     
             # Detecting a fall
             if self.isFallenBack():
