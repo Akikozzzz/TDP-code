@@ -84,12 +84,12 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
     # Detecting if a robot has fallen from back
     def isFallenBack(self):       
         acceleration = self.accelerometer.getValues()       
-        return 0.1 < abs(acceleration[2]) < 0.5 
+        return 0.1 < abs(acceleration[2]) < 2 
     
     # Detecting if a robot has fallen from front
     def isFallenFront(self):
         acceleration = self.accelerometer.getValues()
-        return 1 < abs(acceleration[2]) < 3 
+        return 2 < abs(acceleration[2]) < 3 
         
     """
     Description:
@@ -117,11 +117,24 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             print("Error: Ball node not found.")
             return
         
+        # Field range
+        field_x_max = 4.5
+        field_x_min = -4.5
+        field_y_max = 3
+        field_y_min = -3
+        
         # Blue's goal range
-        goal_x = -4.5 
+        blue_goal_x = -4.5
         goal_center_y = 0
-        goal_y_min = -1.34321
-        goal_y_max = 1.34321
+        blue_goal_y_min = -1.34321
+        blue_goal_y_max = 1.34321
+        approach_distance = 0.1   
+            
+        # Red's goal range
+        red_goal_x = 4.5
+        goal_center_y = 0
+        red_goal_y_min = -1.34321
+        red_goal_y_max = 1.34321
         approach_distance = 0.1
         
         # Blue's restricted area
@@ -130,11 +143,21 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
         
-        # move area for Blue defender1
-        move_area_x_min = 1.25
-        move_area_x_max = 4.5
-        move_area_y_min = -3
-        move_area_y_max = 3
+        # move area for red defender1
+        move_area_x_min1 = -0.1
+        move_area_x_max1 = 4.5
+        move_area_y_min1 = -3
+        move_area_y_max1 = -1.5
+
+        move_area_x_min2 = -0.1
+        move_area_x_max2 = 4.5
+        move_area_y_min2 = 1.5
+        move_area_y_max2 = 3
+
+        move_area_x_min3 = -0.1
+        move_area_x_max3 = 3.6
+        move_area_y_min3 = -1.5
+        move_area_y_max3 = 1.5
         
         # initial position
         defender1_red_position = [2.5, 0, 0.334]
@@ -152,9 +175,28 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
     
             # Determine if the ball is within the moveable range
             in_move_area = False
-            if move_area_x_min <= target_x <= move_area_x_max:
-                if move_area_y_min <= target_y <= move_area_y_max:
-                    in_move_area = True
+            if (move_area_x_min1 <= target_x <= move_area_x_max1 and move_area_y_min1 <= target_y <= move_area_y_max1) or \
+               (move_area_x_min2 <= target_x <= move_area_x_max2 and move_area_y_min2 <= target_y <= move_area_y_max2) or \
+               (move_area_x_min3 <= target_x <= move_area_x_max3 and move_area_y_min3 <= target_y <= move_area_y_max3):
+                in_move_area = True
+                
+            # Detecting whether goaled
+            if target_x > red_goal_x and red_goal_y_min <= target_y <= red_goal_y_max:
+                print("Blue goal")
+                break
+                
+            if target_x < blue_goal_x and blue_goal_y_min <= target_y <= blue_goal_y_max:
+                print("Red goal")
+                break
+
+                
+            # Detecting whether ball is out
+            if (target_y > field_y_max) or \
+               (target_y < field_y_min) or \
+               (target_x > field_x_max and ((target_y > red_goal_y_max) or (target_y < red_goal_y_min))) or \
+               (target_x < field_x_min and ((target_y > red_goal_y_max) or (target_y < red_goal_y_min))):
+                print("ball out")
+                break
     
             # Detecting a fall
             if self.isFallenBack():
@@ -171,10 +213,11 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             
             # The ball is out of range, the goalkeeper returns to the initial position and faces the ball
             if not in_move_area:
-                distance_to_initial = self.calculateDistance(robot_position, defender1_red_position)
+                ready_position = [1.6, target_y-0.5, 0.334]
+                distance_to_initial = self.calculateDistance(robot_position, ready_position)
                 if distance_to_initial > 0.05:  # If not in initial position
                     # turn to initial position
-                    angle_to_initial = self.calculateAngle(robot_position, defender1_red_position)
+                    angle_to_initial = self.calculateAngle(robot_position, ready_position)
                     angle_diff_to_initial = (angle_to_initial - robot_yaw + math.pi) % (2 * math.pi) - math.pi
                     if abs(angle_diff_to_initial) > math.radians(30):
                         if angle_diff_to_initial > 0:
@@ -206,7 +249,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             else:
                 # The ball is in the moveable area and the defender takes the initiative
                 distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
-                if distance_to_ball > 0.2:
+                if distance_to_ball > 0.24:
                     # Adjust the angle of the robot and the ball
                     angle_to_ball = self.calculateAngle(robot_position, (target_x, target_y, 0))
                     angle_diff = (angle_to_ball - robot_yaw + math.pi) % (2 * math.pi) - math.pi
@@ -224,7 +267,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                         while not self.forwards.isOver():
                             self.step(self.timeStep)
                 else: # When kicking the ball out of the penalty area, try to face towards the opposing team's goal
-                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
+                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (blue_goal_x, goal_center_y))
                     angle_diff_to_goal = angle_to_goal_center - robot_yaw
                     angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
     

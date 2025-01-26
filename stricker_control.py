@@ -84,12 +84,12 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
     # Detecting if a robot has fallen from back
     def isFallenBack(self):       
         acceleration = self.accelerometer.getValues()       
-        return 0.1 < abs(acceleration[2]) < 0.5 
+        return 0.1 < abs(acceleration[2]) < 2 
     
     # Detecting if a robot has fallen from front
     def isFallenFront(self):
         acceleration = self.accelerometer.getValues()
-        return 1 < abs(acceleration[2]) < 3 
+        return 2 < abs(acceleration[2]) < 3 
     
     """
     Description:
@@ -116,12 +116,25 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         if ball_node is None:
             print("Error: Ball node not found.")
             return
+            
+        # Field range
+        field_x_max = 4.5
+        field_x_min = -4.5
+        field_y_max = 3
+        field_y_min = -3
         
-        # Red's goal range
-        goal_x = 4.5  
+        # Blue's goal range
+        blue_goal_x = -4.5
         goal_center_y = 0
-        goal_y_min = -1.34321
-        goal_y_max = 1.34321
+        blue_goal_y_min = -1.34321
+        blue_goal_y_max = 1.34321
+        approach_distance = 0.1   
+            
+        # Red's goal range
+        red_goal_x = 4.5
+        goal_center_y = 0
+        red_goal_y_min = -1.34321
+        red_goal_y_max = 1.34321
         approach_distance = 0.1
         
         # Red's restricted area
@@ -130,11 +143,11 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
         
-        # move area for Red stricker
-        move_area_x_min = -0.1
+        # move area for blue stricker
+        move_area_x_min = 2.4
         move_area_x_max = 4.6
-        move_area_y_min = -3
-        move_area_y_max = 3
+        move_area_y_min = -2.6
+        move_area_y_max = 2.6
         
         # initial position
         stricker_blue_position = [1.5, 1, 0.334]
@@ -163,8 +176,21 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                     in_move_area = True
                     
             # Detecting whether goaled
-            if target_x > goal_x and goal_y_min <= target_y <= goal_y_max:
+            if target_x > red_goal_x and red_goal_y_min <= target_y <= red_goal_y_max:
                 print("Blue goal")
+                break
+                
+            if target_x < blue_goal_x and blue_goal_y_min <= target_y <= blue_goal_y_max:
+                print("Red goal")
+                break
+
+            
+            # Detecting whether ball is out
+            if (target_y > field_y_max) or \
+               (target_y < field_y_min) or \
+               (target_x > field_x_max and ((target_y > red_goal_y_max) or (target_y < red_goal_y_min))) or \
+               (target_x < field_x_min and ((target_y > red_goal_y_max) or (target_y < red_goal_y_min))):
+                print("ball out")
                 break
     
             # Detecting a fall
@@ -186,10 +212,11 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             
             # The ball is out of range, the stricker returns to the initial position and faces the ball
             if not in_move_area:
-                distance_to_initial = self.calculateDistance(robot_position, stricker_blue_position)
+                ready_position = [2.6, target_y+0.5, 0.334]
+                distance_to_initial = self.calculateDistance(robot_position, ready_position)
                 if distance_to_initial > 0.05:  # If not in initial position
                     # turn to initial position
-                    angle_to_initial = self.calculateAngle(robot_position, stricker_blue_position)
+                    angle_to_initial = self.calculateAngle(robot_position, ready_position)
                     angle_diff_to_initial = (angle_to_initial - robot_yaw + math.pi) % (2 * math.pi) - math.pi
                     if abs(angle_diff_to_initial) > math.radians(30):
                         if angle_diff_to_initial > 0:
@@ -220,38 +247,11 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                                 self.step(self.timeStep)
                 
             else: # The ball is in the moveable range  
-                # Determine if the ball is behind the robot
-                if target_x < robot_position[0]:             
-                    # Determine detour points
-                    side_offset = 0.5  # To avoid hitting the ball, set the offset distance
-                    if robot_position[1] >= target_y:
-                        around_point = (target_x, target_y + side_offset)  # right side
-                    else:
-                        around_point = (target_x, target_y - side_offset)  # left side
-                
-                    distance_to_around_point = self.calculateDistance(robot_position, (around_point[0], around_point[1], 0))
-                    angle_to_around_point = self.calculateAngle(robot_position, (around_point[0], around_point[1], 0))
-                    angle_diff_to_around = angle_to_around_point - robot_yaw
-                    angle_diff_to_around = (angle_diff_to_around + math.pi) % (2 * math.pi) - math.pi
-                
-                    # Move to the detour points first
-                    if distance_to_around_point > 0.1:
-                        if abs(angle_diff_to_around) > math.radians(30):
-                            if angle_diff_to_around > 0:
-                                self.startMotion(self.turnLeft30)
-                            else:
-                                self.startMotion(self.turnRight30)
-                        else:
-                            self.startMotion(self.forwards)
-                    else:
-                        # Target position changed to the back of the ball
-                        back_position = (target_x - 0.5, target_y, 0)
-                        angle_to_back = self.calculateAngle(robot_position, back_position)
-                        angle_diff_to_back = angle_to_back - robot_yaw
-                        angle_diff_to_back = (angle_diff_to_back + math.pi) % (2 * math.pi) - math.pi
-                
-                        if abs(angle_diff_to_back) > math.radians(30):
-                            if angle_diff_to_around > 0:
+               
+                if not in_goal_area: # The ball is not in the penalty area, kick the ball into the penalty area first
+                    if distance_to_ball > 0.24: # Reorientation
+                        if abs(angle_diff) > math.radians(30):
+                            if angle_diff > 0:
                                 self.startMotion(self.turnLeft30)
                                 while not self.turnLeft30.isOver():
                                     self.step(self.timeStep)
@@ -261,100 +261,82 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                                     self.step(self.timeStep)
                         else:
                             self.startMotion(self.forwards)
-    
-                else: # The ball is in front of the robot, ready to attack
-                    if not in_goal_area: # The ball is not in the penalty area, kick the ball into the penalty area first
-                        if distance_to_ball > 0.2: # Reorientation
-                            if abs(angle_diff) > math.radians(30):
-                                if angle_diff > 0:
-                                    self.startMotion(self.turnLeft30)
-                                    while not self.turnLeft30.isOver():
-                                        self.step(self.timeStep)
-                                else:
-                                    self.startMotion(self.turnRight30)
-                                    while not self.turnRight30.isOver():
-                                        self.step(self.timeStep)
-                            else:
-                                self.startMotion(self.forwards)
-                                while not self.forwards.isOver():
+                            while not self.forwards.isOver():
+                                self.step(self.timeStep)
+                    else: # Close enough to make fine adjustments to the goal 
+                        angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (red_goal_x, goal_center_y))
+                        angle_diff_to_goal = angle_to_goal_center - robot_yaw
+                        angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
+        
+                        if abs(angle_diff_to_goal) > math.radians(10):  
+                            if angle_diff_to_goal < 0:
+                                self.startMotion(self.sideStepLeft)
+                                while not self.sideStepLeft.isOver():
                                     self.step(self.timeStep)
-                        else: # Close enough to make fine adjustments to the goal 
-                            angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
-                            angle_diff_to_goal = angle_to_goal_center - robot_yaw
-                            angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
-            
-                            if abs(angle_diff_to_goal) > math.radians(10):  
-                                if angle_diff_to_goal < 0:
-                                    self.startMotion(self.sideStepLeft)
-                                    while not self.sideStepLeft.isOver():
-                                        self.step(self.timeStep)
-                                else:
-                                    self.startMotion(self.sideStepRight) 
-                                    while not self.sideStepRight.isOver():
-                                        self.step(self.timeStep)
                             else:
-                                initial_ball_position = target_position.copy()
-                                self.startMotion(self.forwards)
-                                while not self.forwards.isOver():
+                                self.startMotion(self.sideStepRight) 
+                                while not self.sideStepRight.isOver():
                                     self.step(self.timeStep)
-                                # Update the position of the ball and determine if the ball has moved
-                                updated_ball_position = ball_node.getField("translation").getSFVec3f()
-                                ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
-                                
-                                if ball_movement < 0.05:  # Determine if the kick is empty
-                                    self.startMotion(self.sideStepRight)
-                                    while not self.sideStepRight.isOver():
-                                        self.step(self.timeStep)
-                    else: # The ball reaches the penalty area
-                        if distance_to_ball > 0.2: # Reorientation again
-                            if abs(angle_diff) > math.radians(30):
-                                if angle_diff > 0:
-                                    self.startMotion(self.turnLeft30)
-                                    while not self.turnLeft30.isOver():
-                                        self.step(self.timeStep)
-                                else:
-                                    self.startMotion(self.turnRight30)
-                                    while not self.turnRight30.isOver():
-                                        self.step(self.timeStep)
+                        else:
+                            initial_ball_position = target_position.copy()
+                            self.startMotion(self.forwards)
+                            while not self.forwards.isOver():
+                                self.step(self.timeStep)
+                            # Update the position of the ball and determine if the ball has moved
+                            updated_ball_position = ball_node.getField("translation").getSFVec3f()
+                            ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
+                            
+                            if ball_movement < 0.05:  # Determine if the kick is empty
+                                self.startMotion(self.sideStepRight)
+                                while not self.sideStepRight.isOver():
+                                    self.step(self.timeStep)
+                else: # The ball reaches the penalty area
+                    if distance_to_ball > 0.24: # Reorientation again
+                        if abs(angle_diff) > math.radians(30):
+                            if angle_diff > 0:
+                                self.startMotion(self.turnLeft30)
+                                while not self.turnLeft30.isOver():
+                                    self.step(self.timeStep)
                             else:
-                                self.startMotion(self.forwards)
-                                while not self.forwards.isOver():
-                                    self.step(self.timeStep)                       
-                        else: # Prepare to shoot
-                            angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
-                            angle_diff_to_goal = angle_to_goal_center - robot_yaw
-                            angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
-                        
-                            if abs(angle_diff_to_goal) > math.radians(10):
-                                if angle_diff_to_goal < 0:
-                                    self.startMotion(self.turnRight30)
-                                    while not self.turnRight30.isOver():
-                                        self.step(self.timeStep)
-                                else:
-                                    self.startMotion(self.turnLeft30) 
-                                    while not self.turnLeft30.isOver():
-                                        self.step(self.timeStep)
-                            else: # shoot
-                                initial_ball_position = target_position.copy()
-                                self.startMotion(self.shoot)
-                                while not self.shoot.isOver():
+                                self.startMotion(self.turnRight30)
+                                while not self.turnRight30.isOver():
                                     self.step(self.timeStep)
-                                # Update the position of the ball and determine if the ball has moved
-                                updated_ball_position = ball_node.getField("translation").getSFVec3f()
-                                ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
-                                
-                                if ball_movement < 0.05:  # Determine if the kick is empty
-                                    print("踢空了，向右侧移一步重新调整位置。")
-                                    self.startMotion(self.sideStepRight)
-                                    while not self.sideStepRight.isOver():
-                                        self.step(self.timeStep)
-                                    print("侧移完成，重新尝试踢球。")
-                                else:
-                                    print("踢球成功，继续下一步。")
+                        else:
+                            self.startMotion(self.forwards)
+                            while not self.forwards.isOver():
+                                self.step(self.timeStep)                       
+                    else: # Prepare to shoot
+                        angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (red_goal_x, goal_center_y))
+                        angle_diff_to_goal = angle_to_goal_center - robot_yaw
+                        angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
+                    
+                        if abs(angle_diff_to_goal) > math.radians(10):
+                            if angle_diff_to_goal < 0:
+                                self.startMotion(self.turnRight30)
+                                while not self.turnRight30.isOver():
+                                    self.step(self.timeStep)
+                            else:
+                                self.startMotion(self.turnLeft30) 
+                                while not self.turnLeft30.isOver():
+                                    self.step(self.timeStep)
+                        else: # shoot
+                            initial_ball_position = target_position.copy()
+                            self.startMotion(self.shoot)
+                            while not self.shoot.isOver():
+                                self.step(self.timeStep)
+                            # Update the position of the ball and determine if the ball has moved
+                            updated_ball_position = ball_node.getField("translation").getSFVec3f()
+                            ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
+                            
+                            if ball_movement < 0.05:  # Determine if the kick is empty
+                                self.startMotion(self.sideStepRight)
+                                while not self.sideStepRight.isOver():
+                                    self.step(self.timeStep)
     
             # Cyclic execution
             if self.step(self.timeStep) == -1:
                 break 
+    
 
 # Create a Nao instance and run the main loop
 robot = Nao()

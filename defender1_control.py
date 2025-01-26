@@ -123,11 +123,18 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         field_y_max = 3
         field_y_min = -3
         
-        # Red's goal range
-        goal_x = 4.5  
+        # Blue's goal range
+        blue_goal_x = -4.5
         goal_center_y = 0
-        goal_y_min = -1.34321
-        goal_y_max = 1.34321
+        blue_goal_y_min = -1.34321
+        blue_goal_y_max = 1.34321
+        approach_distance = 0.1   
+            
+        # Red's goal range
+        red_goal_x = 4.5
+        goal_center_y = 0
+        red_goal_y_min = -1.34321
+        red_goal_y_max = 1.34321
         approach_distance = 0.1
         
         # Red's restricted area
@@ -174,15 +181,20 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                 in_move_area = True
                 
             # Detecting whether goaled
-            if target_x > goal_x and goal_y_min <= target_y <= goal_y_max:
+            if target_x > red_goal_x and red_goal_y_min <= target_y <= red_goal_y_max:
                 print("Blue goal")
                 break
+                
+            if target_x < blue_goal_x and blue_goal_y_min <= target_y <= blue_goal_y_max:
+                print("Red goal")
+                break
+
                 
             # Detecting whether ball is out
             if (target_y > field_y_max) or \
                (target_y < field_y_min) or \
-               (target_x > field_x_max and ((target_y > goal_y_max) or (target_y < goal_y_min))) or \
-               (target_x < field_x_min and ((target_y > goal_y_max) or (target_y < goal_y_min))):
+               (target_x > field_x_max and ((target_y > red_goal_y_max) or (target_y < red_goal_y_min))) or \
+               (target_x < field_x_min and ((target_y > red_goal_y_max) or (target_y < red_goal_y_min))):
                 print("ball out")
                 break
     
@@ -201,10 +213,11 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             
             # The ball is out of range, the goalkeeper returns to the initial position and faces the ball
             if not in_move_area:
-                distance_to_initial = self.calculateDistance(robot_position, defender1_blue_position)
+                ready_position = [-1.6, target_y+0.5, 0.334]
+                distance_to_initial = self.calculateDistance(robot_position, ready_position)
                 if distance_to_initial > 0.05:  # If not in initial position
                     # turn to initial position
-                    angle_to_initial = self.calculateAngle(robot_position, defender1_blue_position)
+                    angle_to_initial = self.calculateAngle(robot_position, ready_position)
                     angle_diff_to_initial = (angle_to_initial - robot_yaw + math.pi) % (2 * math.pi) - math.pi
                     if abs(angle_diff_to_initial) > math.radians(30):
                         if angle_diff_to_initial > 0:
@@ -236,7 +249,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             else:
                 # The ball is in the moveable area and the defender takes the initiative
                 distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
-                if distance_to_ball > 0.2:
+                if distance_to_ball > 0.24:
                     # Adjust the angle of the robot and the ball
                     angle_to_ball = self.calculateAngle(robot_position, (target_x, target_y, 0))
                     angle_diff = (angle_to_ball - robot_yaw + math.pi) % (2 * math.pi) - math.pi
@@ -254,7 +267,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                         while not self.forwards.isOver():
                             self.step(self.timeStep)
                 else: # When kicking the ball out of the penalty area, try to face towards the opposing team's goal
-                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (goal_x, goal_center_y))
+                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (red_goal_x, goal_center_y))
                     angle_diff_to_goal = angle_to_goal_center - robot_yaw
                     angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
     
