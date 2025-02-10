@@ -138,7 +138,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
         approach_distance = 0.1
         
         # Red's restricted area
-        goal_area_x_min = 3.5
+        goal_area_x_min = 4
         goal_area_x_max = 4.5
         goal_area_y_min = -1.5
         goal_area_y_max = 1.5
@@ -263,33 +263,33 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                             self.startMotion(self.forwards)
                             while not self.forwards.isOver():
                                 self.step(self.timeStep)
-                    else: # Close enough to make fine adjustments to the goal 
-                        angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (red_goal_x, goal_center_y))
-                        angle_diff_to_goal = angle_to_goal_center - robot_yaw
+                    else:  # When kicking the ball out of the penalty area
+                        # Dynamically calculate target Y based on robot's current Y position
+                        robot_y = robot_position[1]  # Get the robot's current Y position
+                        if robot_y < goal_center_y:  # Robot is in the lower half
+                            target_goal_y = red_goal_y_min + 0.8  # Aim slightly inside the lower boundary
+                        else:  # Robot is in the upper half
+                            target_goal_y = red_goal_y_max - 0.8  # Aim slightly inside the upper boundary
+                    
+                        # Calculate angle to the dynamically selected goal point
+                        angle_to_goal = self.calculateAngle((target_x, target_y, 0), (red_goal_x, target_goal_y))
+                        angle_diff_to_goal = angle_to_goal - robot_yaw
                         angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
-        
-                        if abs(angle_diff_to_goal) > math.radians(10):  
+                    
+                        # Adjust orientation if needed
+                        if abs(angle_diff_to_goal) > math.radians(30):  
                             if angle_diff_to_goal < 0:
-                                self.startMotion(self.sideStepLeft)
+                                self.startMotion(self.sideStepLeft)                             
                                 while not self.sideStepLeft.isOver():
-                                    self.step(self.timeStep)
+                                    self.step(self.timeStep)                      
                             else:
                                 self.startMotion(self.sideStepRight) 
                                 while not self.sideStepRight.isOver():
                                     self.step(self.timeStep)
-                        else:
-                            initial_ball_position = target_position.copy()
+                        else:  # If angle is within range, pass the ball
                             self.startMotion(self.forwards)
                             while not self.forwards.isOver():
                                 self.step(self.timeStep)
-                            # Update the position of the ball and determine if the ball has moved
-                            updated_ball_position = ball_node.getField("translation").getSFVec3f()
-                            ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
-                            
-                            if ball_movement < 0.05:  # Determine if the kick is empty
-                                self.startMotion(self.sideStepRight)
-                                while not self.sideStepRight.isOver():
-                                    self.step(self.timeStep)
                 else: # The ball reaches the penalty area
                     if distance_to_ball > 0.24: # Reorientation again
                         if abs(angle_diff) > math.radians(30):
@@ -310,7 +310,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                         angle_diff_to_goal = angle_to_goal_center - robot_yaw
                         angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
                     
-                        if abs(angle_diff_to_goal) > math.radians(10):
+                        if abs(angle_diff_to_goal) > math.radians(30):
                             if angle_diff_to_goal < 0:
                                 self.startMotion(self.turnRight30)
                                 while not self.turnRight30.isOver():
