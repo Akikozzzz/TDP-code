@@ -249,7 +249,7 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
             else:
                 # The ball is in the moveable area and the defender takes the initiative
                 distance_to_ball = self.calculateDistance(robot_position, (target_x, target_y, 0))
-                if distance_to_ball > 0.24:
+                if distance_to_ball > 0.3:
                     # Adjust the angle of the robot and the ball
                     angle_to_ball = self.calculateAngle(robot_position, (target_x, target_y, 0))
                     angle_diff = (angle_to_ball - robot_yaw + math.pi) % (2 * math.pi) - math.pi
@@ -266,34 +266,33 @@ class Nao(Supervisor):  # Inherits Supervisor in order to get the location of ot
                         self.startMotion(self.forwards)
                         while not self.forwards.isOver():
                             self.step(self.timeStep)
-                else: # When kicking the ball out of the penalty area, try to face towards the opposing team's goal
-                    angle_to_goal_center = self.calculateAngle((target_x, target_y, 0), (blue_goal_x, goal_center_y))
-                    angle_diff_to_goal = angle_to_goal_center - robot_yaw
+                else:  # When kicking the ball out of the penalty area
+                    # Dynamically calculate target Y based on robot's current Y position
+                    robot_y = robot_position[1]  # Get the robot's current Y position
+                    if robot_y < goal_center_y:  # Robot is in the lower half
+                        target_goal_y = red_goal_y_min + 0.8  # Aim slightly inside the lower boundary
+                    else:  # Robot is in the upper half
+                        target_goal_y = red_goal_y_max - 0.8  # Aim slightly inside the upper boundary
+                
+                    # Calculate angle to the dynamically selected goal point
+                    angle_to_goal = self.calculateAngle((target_x, target_y, 0), (blue_goal_x, target_goal_y))
+                    angle_diff_to_goal = angle_to_goal - robot_yaw
                     angle_diff_to_goal = (angle_diff_to_goal + math.pi) % (2 * math.pi) - math.pi
-    
-                    if abs(angle_diff_to_goal) > math.radians(10):  
+                
+                    # Adjust orientation if needed
+                    if abs(angle_diff_to_goal) > math.radians(30):  
                         if angle_diff_to_goal < 0:
                             self.startMotion(self.sideStepLeft)                             
                             while not self.sideStepLeft.isOver():
-                                self.step(self.timeStep)
+                                self.step(self.timeStep)                      
                         else:
                             self.startMotion(self.sideStepRight) 
                             while not self.sideStepRight.isOver():
                                 self.step(self.timeStep)
-                    else: # pass the ball
-                        initial_ball_position = target_position.copy()
+                    else:  # If angle is within range, pass the ball
                         self.startMotion(self.forwards)
                         while not self.forwards.isOver():
                             self.step(self.timeStep)
-                        # Update the position of the ball and determine if the ball has moved
-                        updated_ball_position = ball_node.getField("translation").getSFVec3f()
-                        ball_movement = self.calculateDistance(initial_ball_position, updated_ball_position)
-                         
-                        if ball_movement < 0.05:  # Determine if the kick is empty
-                            self.startMotion(self.sideStepRight)
-                            while not self.sideStepRight.isOver():
-                                self.step(self.timeStep)
-    
             # Cyclic execution
             if self.step(self.timeStep) == -1:
                 break 
